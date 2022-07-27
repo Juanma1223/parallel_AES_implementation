@@ -1,5 +1,6 @@
 import numpy as np
 import aesTools
+import sBox
 
 f = open("test.txt", "r")
 
@@ -22,6 +23,10 @@ for char in plainText:
         chars.append(char)
         i = i + 1
     else:
-        aesTools.aesEncrypt(chars, password)
+        encrypted = aesTools.aesEncrypt(chars, password)
+        print("encrypted",encrypted)
+        decrypted = aesTools.aesDecrypt(encrypted)
+        print("decrypted",decrypted)
         chars = []
         i = 0
+

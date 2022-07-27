@@ -3,21 +3,57 @@ import numpy as np
 import copy
 import sBox
 
+rounds = 10
+
+keys = []
+
 def aesEncrypt(chars, password):
     # Convert plain text to 4x4 matrix
     stateMatrix = buildStateMatrix(chars)
+    print("original",stateMatrix)
+    # First round
     passwordMatrix = buildStateMatrix(password)
-    print(stateMatrix)
-    for i in range(0, 9):
-        # Perform bitwise xor between state matrix and password
-        stateMatrix = stateMatrixXor(stateMatrix, passwordMatrix)
+    stateMatrix = stateMatrixXor(stateMatrix, passwordMatrix)
+    prevKey = copy.deepcopy(passwordMatrix)
+    keys.append(prevKey)
+    passwordMatrix = keyExpansion(passwordMatrix)
+    for i in range(0, rounds):
         # Perform byte substitution using substitution box
         stateMatrix = sBox.subBytes(stateMatrix)
         # Apply diffusion
         stateMatrix = shiftRows(stateMatrix)
         stateMatrix = mixColumns(stateMatrix)
         # Get new key
+        prevKey = copy.deepcopy(passwordMatrix)
+        keys.append(prevKey)
+        stateMatrix = stateMatrixXor(stateMatrix, passwordMatrix)
         passwordMatrix = keyExpansion(passwordMatrix)
+        # Perform bitwise xor between state matrix and password
+    # Last round operations
+    stateMatrix = sBox.subBytes(stateMatrix)
+    stateMatrix = shiftRows(stateMatrix)
+    prevKey = copy.deepcopy(passwordMatrix)
+    keys.append(prevKey)
+    stateMatrix = stateMatrixXor(stateMatrix, passwordMatrix)
+    return stateMatrix
+
+
+def aesDecrypt(stateMatrix):
+    keyIndex = 1
+    passwordMatrix = keys[-1*keyIndex]
+    stateMatrix = stateMatrixXor(stateMatrix, passwordMatrix)
+    keyIndex = keyIndex + 1
+    passwordMatrix = keys[-1*keyIndex]
+    for i in range(0, rounds):
+        stateMatrix = invShiftRows(stateMatrix)
+        stateMatrix = sBox.invSubBytes(stateMatrix)
+        stateMatrix = stateMatrixXor(stateMatrix, passwordMatrix)
+        keyIndex = keyIndex + 1
+        passwordMatrix = keys[-1*keyIndex]
+        stateMatrix = invMixColumns(stateMatrix)
+    stateMatrix = invShiftRows(stateMatrix)
+    stateMatrix = sBox.invSubBytes(stateMatrix)
+    stateMatrix = stateMatrixXor(stateMatrix, passwordMatrix)
     return stateMatrix
 
 
@@ -37,9 +73,8 @@ def buildStateMatrix(chars):
             stateMatrix[j][i] = charAscii
     return stateMatrix
 
+
 # Apply bitwise xor between the password and the state matrix
-
-
 def stateMatrixXor(stateMatrix, password):
     for i in range(0, 4):
         for j in range(0, 4):
@@ -84,35 +119,49 @@ def invShiftRows(stateMatrix):
     for i in range(0, 4):
         # Rotate as many times as needed
         for j in range(0, i):
-            aux = np.append(stateMatrix[i][3],stateMatrix[i][0:3])
+            aux = np.append(stateMatrix[i][3], stateMatrix[i][0:3])
             stateMatrix[i] = aux
     return stateMatrix
 
 # Apply transformation matrix to add confusion column wise
+
+
 def mixColumns(stateMatrix):
 
-    for i in range(0,4):
-        stateMatrix[:,i] = galoisMultiply(stateMatrix[:,i])
+    for i in range(0, 4):
+        stateMatrix[:, i] = galoisMultiply(stateMatrix[:, i])
     return stateMatrix
 
+
 def invMixColumns(stateMatrix):
-    for i in range(0,4):
-        stateMatrix[:,i] = invGaloisMultiply(stateMatrix[:,i])
+    for i in range(0, 4):
+        stateMatrix[:, i] = invGaloisMultiply(stateMatrix[:, i])
     return stateMatrix
 
 # Apply multiplication on the galois field to a single column
+
+
 def galoisMultiply(col):
-    newCol = np.array([0,0,0,0])
-    newCol[0] = math.floor(sBox.gMulBy2(col[0])) ^ math.floor(sBox.gMulBy3(col[1])) ^ math.floor(col[2]) ^ math.floor(col[3])
-    newCol[1] = math.floor(col[0]) ^ math.floor(sBox.gMulBy2(col[1])) ^ math.floor(sBox.gMulBy3(col[2])) ^ math.floor(math.floor(col[3]))
-    newCol[2] = math.floor(col[0]) ^ math.floor(col[1]) ^ math.floor(sBox.gMulBy2(col[2])) ^ math.floor(sBox.gMulBy3(col[3]))
-    newCol[3] = math.floor(sBox.gMulBy3(col[0])) ^ math.floor(col[1]) ^ math.floor(col[2]) ^ math.floor(sBox.gMulBy2(col[3]))
+    newCol = np.array([0, 0, 0, 0])
+    newCol[0] = math.floor(sBox.gMulBy2(col[0])) ^ math.floor(
+        sBox.gMulBy3(col[1])) ^ math.floor(col[2]) ^ math.floor(col[3])
+    newCol[1] = math.floor(col[0]) ^ math.floor(sBox.gMulBy2(col[1])) ^ math.floor(
+        sBox.gMulBy3(col[2])) ^ math.floor(math.floor(col[3]))
+    newCol[2] = math.floor(col[0]) ^ math.floor(col[1]) ^ math.floor(
+        sBox.gMulBy2(col[2])) ^ math.floor(sBox.gMulBy3(col[3]))
+    newCol[3] = math.floor(sBox.gMulBy3(col[0])) ^ math.floor(
+        col[1]) ^ math.floor(col[2]) ^ math.floor(sBox.gMulBy2(col[3]))
     return newCol
 
+
 def invGaloisMultiply(col):
-    newCol = np.array([0,0,0,0])
-    newCol[0] = math.floor(sBox.gMulBy14(col[0])) ^ math.floor(sBox.gMulBy11(col[1])) ^ math.floor(sBox.gMulBy13(col[2])) ^ math.floor(sBox.gMulBy9(col[3]))
-    newCol[1] = math.floor(sBox.gMulBy9(col[0])) ^ math.floor(sBox.gMulBy14(col[1])) ^ math.floor(sBox.gMulBy11(col[2])) ^ math.floor(sBox.gMulBy13(col[3]))
-    newCol[2] = math.floor(sBox.gMulBy13(col[0])) ^ math.floor(sBox.gMulBy9(col[1])) ^ math.floor(sBox.gMulBy14(col[2])) ^ math.floor(sBox.gMulBy11(col[3]))
-    newCol[3] = math.floor(sBox.gMulBy11(col[0])) ^ math.floor(sBox.gMulBy13(col[1])) ^ math.floor(sBox.gMulBy9(col[2])) ^ math.floor(sBox.gMulBy14(col[3]))
+    newCol = np.array([0, 0, 0, 0])
+    newCol[0] = math.floor(sBox.gMulBy14(col[0])) ^ math.floor(sBox.gMulBy11(
+        col[1])) ^ math.floor(sBox.gMulBy13(col[2])) ^ math.floor(sBox.gMulBy9(col[3]))
+    newCol[1] = math.floor(sBox.gMulBy9(col[0])) ^ math.floor(sBox.gMulBy14(
+        col[1])) ^ math.floor(sBox.gMulBy11(col[2])) ^ math.floor(sBox.gMulBy13(col[3]))
+    newCol[2] = math.floor(sBox.gMulBy13(col[0])) ^ math.floor(sBox.gMulBy9(
+        col[1])) ^ math.floor(sBox.gMulBy14(col[2])) ^ math.floor(sBox.gMulBy11(col[3]))
+    newCol[3] = math.floor(sBox.gMulBy11(col[0])) ^ math.floor(sBox.gMulBy13(
+        col[1])) ^ math.floor(sBox.gMulBy9(col[2])) ^ math.floor(sBox.gMulBy14(col[3]))
     return newCol
