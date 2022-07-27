@@ -1,18 +1,13 @@
+import math
 import numpy as np
 import copy
 import sBox
-
-# Composed logical gate for bitwise xor
-
-
-def xor(a, b):
-    return (a & (~ b)) | ((~ a) & b)
-
 
 def aesEncrypt(chars, password):
     # Convert plain text to 4x4 matrix
     stateMatrix = buildStateMatrix(chars)
     passwordMatrix = buildStateMatrix(password)
+    print(stateMatrix)
     for i in range(0, 9):
         # Perform bitwise xor between state matrix and password
         stateMatrix = stateMatrixXor(stateMatrix, passwordMatrix)
@@ -51,7 +46,7 @@ def stateMatrixXor(stateMatrix, password):
             passChar = int(password[j][i])
             currNumber = int(stateMatrix[j][i])
             # Perform bitwise xor between password and stateMatrix for each character
-            stateMatrix[j][i] = xor(passChar, currNumber)
+            stateMatrix[j][i] = passChar ^ currNumber
     return stateMatrix
 
 
@@ -66,11 +61,11 @@ def keyExpansion(key):
         key[i][3] = sBox.sBox(key[i][3])
     # Xor between previous key's first column and new generated column
     for i in range(0, 4):
-        key[i][0] = xor(int(key[i][0]), int(key[i][3]))
+        key[i][0] = int(key[i][0]) ^ int(key[i][3])
     # Xor every other column with the corresponding one
     for i in range(1, 4):
         for j in range(0, 4):
-            key[j][i] = xor(int(key[j][i-1]), int(prevKey[j][i]))
+            key[j][i] = int(key[j][i-1]) ^ int(prevKey[j][i])
     return key
 
 
@@ -81,23 +76,43 @@ def shiftRows(stateMatrix):
         for j in range(0, i):
             aux = np.append(stateMatrix[i][1:4], stateMatrix[i][0])
             stateMatrix[i] = aux
-    print(stateMatrix)
     return stateMatrix
 
 
 # Inverse function, rotates to the right
 def invShiftRows(stateMatrix):
-    print(stateMatrix)
     for i in range(0, 4):
         # Rotate as many times as needed
         for j in range(0, i):
             aux = np.append(stateMatrix[i][3],stateMatrix[i][0:3])
             stateMatrix[i] = aux
-    print(stateMatrix)
     return stateMatrix
 
-# WIP
+# Apply transformation matrix to add confusion column wise
 def mixColumns(stateMatrix):
+
+    for i in range(0,4):
+        stateMatrix[:,i] = galoisMultiply(stateMatrix[:,i])
     return stateMatrix
 
+def invMixColumns(stateMatrix):
+    for i in range(0,4):
+        stateMatrix[:,i] = invGaloisMultiply(stateMatrix[:,i])
+    return stateMatrix
 
+# Apply multiplication on the galois field to a single column
+def galoisMultiply(col):
+    newCol = np.array([0,0,0,0])
+    newCol[0] = math.floor(sBox.gMulBy2(col[0])) ^ math.floor(sBox.gMulBy3(col[1])) ^ math.floor(col[2]) ^ math.floor(col[3])
+    newCol[1] = math.floor(col[0]) ^ math.floor(sBox.gMulBy2(col[1])) ^ math.floor(sBox.gMulBy3(col[2])) ^ math.floor(math.floor(col[3]))
+    newCol[2] = math.floor(col[0]) ^ math.floor(col[1]) ^ math.floor(sBox.gMulBy2(col[2])) ^ math.floor(sBox.gMulBy3(col[3]))
+    newCol[3] = math.floor(sBox.gMulBy3(col[0])) ^ math.floor(col[1]) ^ math.floor(col[2]) ^ math.floor(sBox.gMulBy2(col[3]))
+    return newCol
+
+def invGaloisMultiply(col):
+    newCol = np.array([0,0,0,0])
+    newCol[0] = math.floor(sBox.gMulBy14(col[0])) ^ math.floor(sBox.gMulBy11(col[1])) ^ math.floor(sBox.gMulBy13(col[2])) ^ math.floor(sBox.gMulBy9(col[3]))
+    newCol[1] = math.floor(sBox.gMulBy9(col[0])) ^ math.floor(sBox.gMulBy14(col[1])) ^ math.floor(sBox.gMulBy11(col[2])) ^ math.floor(sBox.gMulBy13(col[3]))
+    newCol[2] = math.floor(sBox.gMulBy13(col[0])) ^ math.floor(sBox.gMulBy9(col[1])) ^ math.floor(sBox.gMulBy14(col[2])) ^ math.floor(sBox.gMulBy11(col[3]))
+    newCol[3] = math.floor(sBox.gMulBy11(col[0])) ^ math.floor(sBox.gMulBy13(col[1])) ^ math.floor(sBox.gMulBy9(col[2])) ^ math.floor(sBox.gMulBy14(col[3]))
+    return newCol
