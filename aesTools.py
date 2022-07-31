@@ -7,38 +7,33 @@ rounds = 10
 
 keys = []
 
+
 def aesEncrypt(chars, password):
     # Convert plain text to 4x4 matrix
     stateMatrix = buildStateMatrix(chars)
-    print("original",stateMatrix)
     # First round
     passwordMatrix = buildStateMatrix(password)
-    stateMatrix = stateMatrixXor(stateMatrix, passwordMatrix)
-    prevKey = copy.deepcopy(passwordMatrix)
-    keys.append(prevKey)
-    passwordMatrix = keyExpansion(passwordMatrix)
+    keys = genKeyExpansion(passwordMatrix)
+    stateMatrix = stateMatrixXor(stateMatrix, keys[0])
     for i in range(0, rounds):
         # Perform byte substitution using substitution box
         stateMatrix = sBox.subBytes(stateMatrix)
         # Apply diffusion
         stateMatrix = shiftRows(stateMatrix)
         stateMatrix = mixColumns(stateMatrix)
-        # Get new key
-        prevKey = copy.deepcopy(passwordMatrix)
-        keys.append(prevKey)
-        stateMatrix = stateMatrixXor(stateMatrix, passwordMatrix)
-        passwordMatrix = keyExpansion(passwordMatrix)
         # Perform bitwise xor between state matrix and password
+        stateMatrix = stateMatrixXor(stateMatrix, keys[i+1])
     # Last round operations
     stateMatrix = sBox.subBytes(stateMatrix)
     stateMatrix = shiftRows(stateMatrix)
-    prevKey = copy.deepcopy(passwordMatrix)
-    keys.append(prevKey)
-    stateMatrix = stateMatrixXor(stateMatrix, passwordMatrix)
-    return stateMatrix
+    stateMatrix = stateMatrixXor(stateMatrix, keys[rounds+1])
+    return matToText(stateMatrix)
 
 
-def aesDecrypt(stateMatrix):
+def aesDecrypt(chars,password):
+    passwordMatrix = buildStateMatrix(password)
+    keys = genKeyExpansion(passwordMatrix)
+    stateMatrix = buildStateMatrix(chars)
     keyIndex = 1
     passwordMatrix = keys[-1*keyIndex]
     stateMatrix = stateMatrixXor(stateMatrix, passwordMatrix)
@@ -54,7 +49,18 @@ def aesDecrypt(stateMatrix):
     stateMatrix = invShiftRows(stateMatrix)
     stateMatrix = sBox.invSubBytes(stateMatrix)
     stateMatrix = stateMatrixXor(stateMatrix, passwordMatrix)
-    return stateMatrix
+    return matToText(stateMatrix)
+
+# Generate intermediate keys derived from the original
+
+
+def genKeyExpansion(passwordMatrix):
+    keys = []
+    for i in range(0, rounds+2):
+        prevKey = copy.deepcopy(passwordMatrix)
+        keys.append(prevKey)
+        passwordMatrix = keyExpansion(passwordMatrix)
+    return keys
 
 
 # Map plain text to a 4x4 matrix for encryption
@@ -165,3 +171,10 @@ def invGaloisMultiply(col):
     newCol[3] = math.floor(sBox.gMulBy11(col[0])) ^ math.floor(sBox.gMulBy13(
         col[1])) ^ math.floor(sBox.gMulBy9(col[2])) ^ math.floor(sBox.gMulBy14(col[3]))
     return newCol
+
+def matToText(stateMatrix):
+    rawText = []
+    for i in range(0,4):
+        for j in range(0,4):
+            rawText.append(chr(math.floor(stateMatrix[j][i])))
+    return "".join(rawText)
