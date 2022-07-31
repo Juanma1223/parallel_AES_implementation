@@ -173,8 +173,8 @@ def invGaloisMultiply(col):
     return newCol
 
 def matToText(stateMatrix):
-    rawText = []
+    rawText = ""
     for i in range(0,4):
         for j in range(0,4):
-            rawText.append(chr(math.floor(stateMatrix[j][i])))
-    return "".join(rawText)
+            rawText = rawText + chr(math.floor(stateMatrix[j][i]))
+    return rawText
